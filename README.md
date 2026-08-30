@@ -68,6 +68,28 @@ this usable from a harness:
  - **inspectable** -- what was stored can be read back over `adb`, so a test
    can assert on it rather than on a screenshot
 
+## Using it
+
+```
+scripts/install.sh            build, install, enable, and turn on auto-approve
+scripts/install.sh --clear    forget every credential
+```
+
+Four things have to be true and three of them are invisible when they are
+not: installed, enabled as a provider, primary, and auto-approving. An
+installed provider that nothing enabled is simply never asked, and the
+ceremony falls through to a sheet offering to use a different phone.
+
+Use `--clear` rather than `pm clear`. Clearing the app's data also
+un-registers it as a provider and turns auto-approve off, and the next
+ceremony then fails for a reason that has nothing to do with what was being
+tested.
+
+Credentials accumulate from ceremonies a relying party rejected -- the
+provider is never told the outcome, so it cannot know -- and once the sheet
+has more entries than fit, the newest is below the fold. A harness should
+clear between runs.
+
 ## Status
 
 Early. The service registers and is invoked; the WebAuthn half is being built
