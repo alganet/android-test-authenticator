@@ -47,6 +47,21 @@ class Vault(context: Context) {
     userName: String,
     requireAuth: Boolean,
   ): Pair<Credential, ECPublicKey> {
+    /* One credential per user per rp, which is what WebAuthn asks a
+       platform authenticator to do: registering again for the same rp.id
+       and user.id replaces rather than adds.
+     *
+     * It also fixes something a test loop hits hard. A provider stores the
+     * key when it makes it, and Credential Manager never tells it whether
+     * the relying party went on to accept the registration -- so every
+     * attempt that failed downstream leaves a credential the server has
+     * never heard of. Those then show up in the sheet, get chosen, and the
+     * sign-in fails as `bad_credential`, which reads as "this passkey is
+     * wrong" rather than "that one was never really made". Eight of them
+     * had piled up before this was written, half against an rp id the
+     * server had since stopped using. */
+    forRp(rpId).filter { it.userHandle.contentEquals(userHandle) }.forEach(::forget)
+
     val credentialId = ByteArray(32).also { java.security.SecureRandom().nextBytes(it) }
 
     val spec = KeyGenParameterSpec.Builder(alias(credentialId), KeyProperties.PURPOSE_SIGN)
@@ -116,6 +131,11 @@ class Vault(context: Context) {
       userName = j.getString("userName"),
       signCount = j.getLong("signCount"),
     )
+  }
+
+  fun forget(credential: Credential) {
+    runCatching { keystore.deleteEntry(alias(credential.credentialId)) }
+    prefs.edit().remove(B64.encode(credential.credentialId)).apply()
   }
 
   fun clear() {

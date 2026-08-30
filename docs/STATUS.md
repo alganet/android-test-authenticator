@@ -74,7 +74,16 @@ first without having actually been run.
       name looks close enough to pass review while being a different value.
       That failed as `bad_origin`, which reads as "wrong app" rather than
       "wrong hash". See CallingApp.kt.
- - A complete assertion **on a device**. The bytes are pinned on a JVM --
+ - **A complete assertion on a device, and the right one.** Two accounts
+   registered against one rp through this provider, both offered in the
+   system sheet, and the second one chosen: the provider asserted that
+   credential's id, the app signed in as that person, and on the server
+   only that credential's counter moved (0 to 1) with the other left
+   untouched. Under the previous code the first credential stored for the
+   rp was signed with regardless of which was tapped, which is a genuine
+   assertion for the wrong person and reports no error anywhere.
+
+ - ~~A complete assertion on a device.~~ The bytes are pinned on a JVM --
    an assertion produced here verifies under an ordinary JCE verifier over
    authData || SHA-256(clientDataJSON), which is what a server
    reconstructs -- and the counter, the rp hash and the absence of attested
@@ -86,6 +95,24 @@ first without having actually been run.
  - Anything at all on a physical device.
 
 ## Known gaps
+
+ - **Credentials accumulate from registrations the relying party rejected.**
+   A provider stores the key when it makes it, and Credential Manager never
+   tells it whether the rp accepted -- so a ceremony that fails downstream
+   leaves a credential the server has never heard of. Those are then
+   offered in the sheet, and choosing one fails as `bad_credential`, which
+   reads as a broken passkey rather than as one that was never really made.
+   Eight had piled up during one afternoon of debugging.
+
+   Re-registering the same user for the same rp now replaces rather than
+   adds, which is what WebAuthn asks of a platform authenticator -- but it
+   does not fix this, because a relying party that mints a fresh user id
+   per attempt produces genuinely distinct credentials. Clearing the app's
+   data is the only cure today. A test harness should probably do that
+   between runs, and this should probably grow an adb-reachable way to.
+
+ - The settings screen builds its list in onCreate, so resuming it shows a
+   stale count.
 
  - There is no consent UI. Without auto-approve the ceremony is refused with
    a message saying so, rather than showing an empty screen.

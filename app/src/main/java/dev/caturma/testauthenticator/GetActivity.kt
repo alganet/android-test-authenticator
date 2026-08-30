@@ -66,6 +66,10 @@ class GetActivity : Activity() {
        the one that was persisted. A counter that reaches the verifier
        ahead of the store is a counter that goes backwards after a crash. */
     val count = vault.spend(credential)
+    android.util.Log.i(
+      "TestAuthenticator",
+      "asserting id=${B64.encode(credential.credentialId)} user=${credential.userName} rp=${credential.rpId} count=$count",
+    )
 
     return Ceremony.assertionResponse(
       requestJson = requestJson,
