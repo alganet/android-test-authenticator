@@ -39,8 +39,28 @@ class GetActivity : Activity() {
 
     val rpId = org.json.JSONObject(requestJson).getString("rpId")
     val vault = Vault(applicationContext)
-    val credential = vault.forRp(rpId).firstOrNull()
-      ?: error("no credential for $rpId")
+
+    /* The entry the person chose, not merely one that would fit. The
+       service puts the id on the intent behind each entry -- see
+       TestAuthenticatorService.pending -- because the system does not tell
+       an activity which of its own entries was tapped.
+
+       Taking the first match for the rp instead is wrong exactly when it
+       matters: two accounts on one site, the second one chosen, the first
+       one signed. The server accepts it, because it is a genuine assertion
+       from a key it knows -- for the wrong person. No error anywhere. */
+    val chosen = intent.getStringExtra(TestAuthenticatorService.EXTRA_CREDENTIAL_ID)
+    val credential = when {
+      chosen != null -> vault.byId(B64.decode(chosen))
+        ?: error("that credential is not on this device any more")
+      /* No id means an entry this build did not create -- refuse rather
+         than guess, because guessing is the bug this replaced. */
+      else -> error("no credential named on the request")
+    }
+
+    require(credential.rpId == rpId) {
+      "that credential belongs to ${credential.rpId}, not $rpId"
+    }
 
     /* Spent here, before the bytes are built, so the number in authData is
        the one that was persisted. A counter that reaches the verifier

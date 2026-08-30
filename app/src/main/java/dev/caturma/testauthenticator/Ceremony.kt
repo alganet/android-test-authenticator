@@ -37,6 +37,21 @@ object Ceremony {
       .toString()
       .toByteArray(Charsets.UTF_8)
 
+  /* Which credentials an rp said it would accept.
+   *
+   * Empty means no opinion, which is the usual case for discoverable
+   * credentials and means "any of mine for this rp". When an rp does name
+   * ids, offering anything else is how a provider ends up signing with a
+   * key the caller already said it would not take -- a genuine assertion
+   * that the server then refuses, with nothing on either side saying why.
+   *
+   * Tolerant of a malformed list on purpose: a request this cannot read is
+   * one where the safe answer is "no opinion", not a crash in a sheet. */
+  fun allowedIds(requestJson: String): Set<String> = runCatching {
+    val arr = JSONObject(requestJson).optJSONArray("allowCredentials") ?: return emptySet()
+    (0 until arr.length()).mapNotNull { arr.optJSONObject(it)?.optString("id")?.ifEmpty { null } }.toSet()
+  }.getOrDefault(emptySet())
+
   /* Registration signs nothing: attestation is `none`, so the attestation
      statement is empty and the only proof on offer is that the key inside
      authData is the one being registered. */

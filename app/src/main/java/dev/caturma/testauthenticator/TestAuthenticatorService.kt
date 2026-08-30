@@ -34,7 +34,7 @@ class TestAuthenticatorService : CredentialProviderService() {
       return
     }
 
-    val entry = CreateEntry.Builder(ENTRY_LABEL, pending(CreateActivity::class.java, request.hashCode()))
+    val entry = CreateEntry.Builder(ENTRY_LABEL, creating())
       .setDescription(getString(R.string.provider_subtitle))
       .build()
 
@@ -57,14 +57,21 @@ class TestAuthenticatorService : CredentialProviderService() {
         org.json.JSONObject(option.requestJson).getString("rpId")
       }.getOrNull() ?: return@flatMap emptyList()
 
-      vault.forRp(rpId).map { credential ->
-        PublicKeyCredentialEntry.Builder(
-          applicationContext,
-          credential.userName.ifEmpty { credential.rpId },
-          pending(GetActivity::class.java, credential.credentialId.contentHashCode()),
-          option,
-        ).build()
-      }
+      /* Honour allowCredentials when the rp sends one -- see
+         Ceremony.allowedIds, which is where the reasoning and the tests
+         for it live. */
+      val allowed = Ceremony.allowedIds(option.requestJson)
+
+      vault.forRp(rpId)
+        .filter { allowed.isEmpty() || B64.encode(it.credentialId) in allowed }
+        .map { credential ->
+          PublicKeyCredentialEntry.Builder(
+            applicationContext,
+            credential.userName.ifEmpty { credential.rpId },
+            pending(GetActivity::class.java, credential),
+            option,
+          ).build()
+        }
     }
 
     callback.onResult(BeginGetCredentialResponse(entries))
@@ -79,18 +86,47 @@ class TestAuthenticatorService : CredentialProviderService() {
     callback.onResult(null)
   }
 
-  /* MUTABLE because the system fills in the request it is answering, and
-     the request code is distinct per entry so two of them cannot collide
-     into one intent. */
-  private fun pending(target: Class<*>, code: Int): PendingIntent =
+  /* MUTABLE because the system fills in the request it is answering.
+     Everything else here is about telling two entries apart.
+
+     A PendingIntent is identified by its request code and by the intent's
+     action, data, type and component -- and NOT by its extras. So two
+     entries built the same way are the same PendingIntent, and
+     FLAG_UPDATE_CURRENT quietly rewrites the first one's extras with the
+     second's. Both entries then point at the same credential, and picking
+     the second in the sheet signs with the first. It looks like the wrong
+     account was chosen rather than like a collision.
+
+     Hence both a distinct request code and a distinct data uri: the uri is
+     what makes the intents genuinely unequal, the code is belt and braces,
+     and the extra is what GetActivity actually reads. */
+  /* Registration has one entry, so there is nothing to tell apart. */
+  private fun creating(): PendingIntent =
     PendingIntent.getActivity(
       applicationContext,
-      code,
-      Intent(applicationContext, target),
+      0,
+      Intent(applicationContext, CreateActivity::class.java),
       PendingIntent.FLAG_MUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
     )
 
-  private companion object {
+  private fun pending(target: Class<*>, credential: Vault.Credential): PendingIntent {
+    val id = B64.encode(credential.credentialId)
+    val intent = Intent(applicationContext, target)
+      .setData(android.net.Uri.parse("credential:$id"))
+      .putExtra(EXTRA_CREDENTIAL_ID, id)
+    return PendingIntent.getActivity(
+      applicationContext,
+      id.hashCode(),
+      intent,
+      PendingIntent.FLAG_MUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+    )
+  }
+
+  companion object {
     const val ENTRY_LABEL = "Test Authenticator"
+
+    /* Read by GetActivity. The entry the person chose is the only thing
+       the system does not tell the activity by itself. */
+    const val EXTRA_CREDENTIAL_ID = "dev.caturma.testauthenticator.CREDENTIAL_ID"
   }
 }

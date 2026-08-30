@@ -139,3 +139,30 @@ class CeremonyTest {
     assertEquals(0, a[32].toInt() and WebAuthn.Flags.AT)
   }
 }
+
+/* Which credentials an rp is willing to accept, and what silence means. */
+class AllowCredentialsTest {
+
+  @Test fun `no list at all is no opinion`() {
+    assertTrue(Ceremony.allowedIds("""{"challenge":"c","rpId":"r"}""").isEmpty())
+  }
+
+  @Test fun `an empty list is no opinion`() {
+    assertTrue(Ceremony.allowedIds("""{"allowCredentials":[]}""").isEmpty())
+  }
+
+  @Test fun `named ids are the whole of what may be offered`() {
+    val ids = Ceremony.allowedIds(
+      """{"allowCredentials":[{"type":"public-key","id":"AAA"},{"type":"public-key","id":"BBB"}]}""",
+    )
+    assertEquals(setOf("AAA", "BBB"), ids)
+  }
+
+  /* A request this cannot read is one where the safe answer is "no
+     opinion". Crashing here would take out the sheet. */
+  @Test fun `nonsense is no opinion rather than an exception`() {
+    assertTrue(Ceremony.allowedIds("not json at all").isEmpty())
+    assertTrue(Ceremony.allowedIds("""{"allowCredentials":"nope"}""").isEmpty())
+    assertTrue(Ceremony.allowedIds("""{"allowCredentials":[{"type":"public-key"}]}""").isEmpty())
+  }
+}

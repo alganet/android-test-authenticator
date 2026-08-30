@@ -89,5 +89,4 @@ first without having actually been run.
 
  - There is no consent UI. Without auto-approve the ceremony is refused with
    a message saying so, rather than showing an empty screen.
- - Assertion picks the first credential for the rp rather than the one the
-   entry was built for.
+ - Nothing has been run on a physical device.

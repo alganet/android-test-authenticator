@@ -82,6 +82,8 @@ class Vault(context: Context) {
 
   fun all(): List<Credential> = prefs.all.keys.mapNotNull { read(it) }
 
+  fun byId(credentialId: ByteArray): Credential? = read(B64.encode(credentialId))
+
   /* Bumped and persisted on every assertion. A counter that never moves is
      one a verifier is entitled to complain about, and one that moves
      backwards is a cloned authenticator -- so this is the state that makes
