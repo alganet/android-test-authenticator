@@ -40,15 +40,34 @@ class CreateActivity : Activity() {
       .onFailure { finishWith(null, it.message ?: "registration failed") }
   }
 
+  /* The Android half: read the request, make a key, and hand both to the
+     ceremony -- which knows WebAuthn and nothing about any of this. */
   private fun register(request: ProviderCreateCredentialRequest): String {
-    val callingRequest = request.callingRequest
-    val requestJson = callingRequest.credentialData.getString(
+    val requestJson = request.callingRequest.credentialData.getString(
       "androidx.credentials.BUNDLE_KEY_REQUEST_JSON",
     ) ?: error("no request json")
 
-    val origin = CallingApp.origin(request.callingAppInfo)
+    val json = org.json.JSONObject(requestJson)
+    val user = json.getJSONObject("user")
+    val vault = Vault(applicationContext)
 
-    return Ceremony.register(this, Vault(applicationContext), requestJson, origin)
+    val (credential, publicKey) = vault.create(
+      rpId = json.getJSONObject("rp").getString("id"),
+      userHandle = B64.decode(user.getString("id")),
+      userName = user.optString("name", ""),
+      /* A key that demands the screen lock cannot be used by a harness --
+         the gesture that answers it is the one Credential Manager refuses
+         to accept synthetically. So under auto-approve it does not. */
+      requireAuth = !Settings.autoApprove(this),
+    )
+
+    return Ceremony.registrationResponse(
+      requestJson = requestJson,
+      origin = CallingApp.origin(request.callingAppInfo),
+      callerPackage = request.callingAppInfo.packageName,
+      credentialId = credential.credentialId,
+      publicKey = publicKey,
+    )
   }
 
   private fun finishWith(responseJson: String?, error: String?) {

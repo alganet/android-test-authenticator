@@ -74,8 +74,12 @@ first without having actually been run.
       name looks close enough to pass review while being a different value.
       That failed as `bad_origin`, which reads as "wrong app" rather than
       "wrong hash". See CallingApp.kt.
- - A complete assertion, and whether the sign counter is read the way a
-   verifier expects across two ceremonies.
+ - A complete assertion **on a device**. The bytes are pinned on a JVM --
+   an assertion produced here verifies under an ordinary JCE verifier over
+   authData || SHA-256(clientDataJSON), which is what a server
+   reconstructs -- and the counter, the rp hash and the absence of attested
+   data are asserted with it. What has not happened is one of these going
+   through Credential Manager and being accepted by a relying party.
  - Whether `callingAppInfo.origin` is populated on this platform version, or
    whether the apk-key-hash fallback in the activities is the path actually
    taken.

@@ -1,58 +1,67 @@
 package dev.caturma.testauthenticator
 
-import android.content.Context
 import org.json.JSONObject
+import java.security.interfaces.ECPublicKey
 
 /* One ceremony, start to finish, with no Android in it.
  *
  * The service and the activities deal with Credential Manager; this deals
  * with WebAuthn. Keeping them apart is what makes the interesting half
  * testable on a JVM -- a registration response is a pure function of the
- * request, the key and the counter, and none of that needs a device. */
+ * request and the key, and an assertion is one of the request, the counter
+ * and whatever the signature turns out to be.
+ *
+ * The signature is the one thing that cannot be pure, so it arrives as a
+ * lambda rather than as a dependency. On a device that is the Android
+ * Keystore; in a test it is an ordinary JCE key, and the bytes either
+ * produces are checked the same way. Nothing here knows the difference,
+ * which is the point: the two bugs that cost the first day of this repo
+ * were both in code shaped like this, and both were found in a second once
+ * it stopped needing an emulator. */
 object Ceremony {
 
+  fun interface Signer {
+    fun sign(data: ByteArray): ByteArray
+  }
+
   /* clientDataJSON, the way an Android authenticator writes it. `origin` is
-     the app's signing certificate, not a url -- there is no web origin on a
-     device, which is the fact every relying party has to be taught once. */
-  fun clientData(type: String, challenge: String, origin: String): ByteArray =
+     the caller's signing identity, not a url -- there is no web origin on a
+     device, which is the fact every relying party has to be taught once.
+     See CallingApp. */
+  fun clientData(type: String, challenge: String, origin: String, callerPackage: String): ByteArray =
     JSONObject()
       .put("type", type)
       .put("challenge", challenge)
       .put("origin", origin)
-      .put("androidPackageName", "dev.caturma.testauthenticator")
+      .put("androidPackageName", callerPackage)
       .toString()
       .toByteArray(Charsets.UTF_8)
 
-  fun register(
-    context: Context,
-    vault: Vault,
+  /* Registration signs nothing: attestation is `none`, so the attestation
+     statement is empty and the only proof on offer is that the key inside
+     authData is the one being registered. */
+  fun registrationResponse(
     requestJson: String,
     origin: String,
+    callerPackage: String,
+    credentialId: ByteArray,
+    publicKey: ECPublicKey,
   ): String {
     val request = JSONObject(requestJson)
-    val rp = request.getJSONObject("rp")
-    val user = request.getJSONObject("user")
-    val rpId = rp.getString("id")
+    val rpId = request.getJSONObject("rp").getString("id")
     val challenge = request.getString("challenge")
 
-    val (credential, publicKey) = vault.create(
-      rpId = rpId,
-      userHandle = Vault.unb64(user.getString("id")),
-      userName = user.optString("name", ""),
-      requireAuth = !Settings.autoApprove(context),
-    )
-
-    val clientDataJson = clientData("webauthn.create", challenge, origin)
+    val clientDataJson = clientData("webauthn.create", challenge, origin, callerPackage)
     val authData = WebAuthn.authenticatorData(
       rpId = rpId,
       /* AT because this carries the new key; UV because the platform only
          let us get here behind the device's own lock. */
       flags = WebAuthn.Flags.UP or WebAuthn.Flags.UV or WebAuthn.Flags.AT,
       signCount = 0,
-      attested = WebAuthn.attestedCredentialData(credential.credentialId, publicKey),
+      attested = WebAuthn.attestedCredentialData(credentialId, publicKey),
     )
 
-    val id = Vault.b64(credential.credentialId)
+    val id = B64.encode(credentialId)
     return JSONObject()
       .put("id", id)
       .put("rawId", id)
@@ -61,38 +70,41 @@ object Ceremony {
       .put(
         "response",
         JSONObject()
-          .put("clientDataJSON", Vault.b64(clientDataJson))
-          .put("attestationObject", Vault.b64(WebAuthn.attestationObject(authData)))
+          .put("clientDataJSON", B64.encode(clientDataJson))
+          .put("attestationObject", B64.encode(WebAuthn.attestationObject(authData)))
           .put("transports", org.json.JSONArray(listOf("internal"))),
       )
       .put("clientExtensionResults", JSONObject())
       .toString()
   }
 
-  fun assert(
-    vault: Vault,
-    credential: Vault.Credential,
+  /* The counter arrives already spent. Whoever owns the storage decides
+     what the next value is and persists it; this only puts it in the bytes
+     -- so a test can hand in 1 and then 2 and check what a verifier would
+     see, without a database. */
+  fun assertionResponse(
     requestJson: String,
     origin: String,
+    callerPackage: String,
+    credentialId: ByteArray,
+    userHandle: ByteArray,
+    signCount: Long,
+    signer: Signer,
   ): String {
     val request = JSONObject(requestJson)
     val challenge = request.getString("challenge")
-    val rpId = request.optString("rpId", credential.rpId)
+    val rpId = request.getString("rpId")
 
-    val clientDataJson = clientData("webauthn.get", challenge, origin)
-    val count = vault.spend(credential)
+    val clientDataJson = clientData("webauthn.get", challenge, origin, callerPackage)
     val authData = WebAuthn.authenticatorData(
       rpId = rpId,
       flags = WebAuthn.Flags.UP or WebAuthn.Flags.UV,
-      signCount = count,
+      signCount = signCount,
       attested = null,
     )
-    val signature = vault.sign(
-      credential.credentialId,
-      WebAuthn.signedOver(authData, clientDataJson),
-    )
+    val signature = signer.sign(WebAuthn.signedOver(authData, clientDataJson))
 
-    val id = Vault.b64(credential.credentialId)
+    val id = B64.encode(credentialId)
     return JSONObject()
       .put("id", id)
       .put("rawId", id)
@@ -101,10 +113,10 @@ object Ceremony {
       .put(
         "response",
         JSONObject()
-          .put("clientDataJSON", Vault.b64(clientDataJson))
-          .put("authenticatorData", Vault.b64(authData))
-          .put("signature", Vault.b64(signature))
-          .put("userHandle", Vault.b64(credential.userHandle)),
+          .put("clientDataJSON", B64.encode(clientDataJson))
+          .put("authenticatorData", B64.encode(authData))
+          .put("signature", B64.encode(signature))
+          .put("userHandle", B64.encode(userHandle)),
       )
       .put("clientExtensionResults", JSONObject())
       .toString()

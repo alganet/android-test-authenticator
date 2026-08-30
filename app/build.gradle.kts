@@ -46,4 +46,8 @@ dependencies {
      so the bytes a verifier reads can be checked on a JVM, in a second,
      rather than by driving an emulator by hand. */
   testImplementation("junit:junit:4.13.2")
+  /* The real org.json. Android ships one, but the unit-test android.jar is
+     a stub whose every method answers null -- so without this the JSON in
+     a response comes out empty and the assertions pass against nothing. */
+  testImplementation("org.json:json:20240303")
 }

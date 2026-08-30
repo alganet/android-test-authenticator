@@ -26,23 +26,35 @@ class GetActivity : Activity() {
       return
     }
 
-    runCatching {
-      val option = request.credentialOptions.first()
-      val requestJson = option.requestData.getString(
-        "androidx.credentials.BUNDLE_KEY_REQUEST_JSON",
-      ) ?: error("no request json")
-
-      val rpId = org.json.JSONObject(requestJson).getString("rpId")
-      val vault = Vault(applicationContext)
-      val credential = vault.forRp(rpId).firstOrNull()
-        ?: error("no credential for $rpId")
-
-      val origin = CallingApp.origin(request.callingAppInfo)
-
-      Ceremony.assert(vault, credential, requestJson, origin)
-    }
+    runCatching { assertFor(request) }
       .onSuccess { finishWith(it, null) }
       .onFailure { finishWith(null, it.message ?: "assertion failed") }
+  }
+
+  private fun assertFor(request: androidx.credentials.provider.ProviderGetCredentialRequest): String {
+    val option = request.credentialOptions.first()
+    val requestJson = option.requestData.getString(
+      "androidx.credentials.BUNDLE_KEY_REQUEST_JSON",
+    ) ?: error("no request json")
+
+    val rpId = org.json.JSONObject(requestJson).getString("rpId")
+    val vault = Vault(applicationContext)
+    val credential = vault.forRp(rpId).firstOrNull()
+      ?: error("no credential for $rpId")
+
+    /* Spent here, before the bytes are built, so the number in authData is
+       the one that was persisted. A counter that reaches the verifier
+       ahead of the store is a counter that goes backwards after a crash. */
+    val count = vault.spend(credential)
+
+    return Ceremony.assertionResponse(
+      requestJson = requestJson,
+      origin = CallingApp.origin(request.callingAppInfo),
+      callerPackage = request.callingAppInfo.packageName,
+      credentialId = credential.credentialId,
+      userHandle = credential.userHandle,
+      signCount = count,
+    ) { data -> vault.sign(credential.credentialId, data) }
   }
 
   private fun finishWith(responseJson: String?, error: String?) {

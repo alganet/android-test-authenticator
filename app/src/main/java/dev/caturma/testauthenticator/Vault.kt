@@ -8,7 +8,6 @@ import java.security.KeyStore
 import java.security.Signature
 import java.security.interfaces.ECPublicKey
 import java.security.spec.ECGenParameterSpec
-import android.util.Base64
 import org.json.JSONObject
 
 /* Where the keys live, and the one thing this app is custodian of.
@@ -123,12 +122,10 @@ class Vault(context: Context) {
   }
 
   companion object {
-    /* base64url, no padding -- the encoding every WebAuthn JSON field uses,
-       so nothing downstream has to translate. */
-    fun b64(b: ByteArray): String =
-      Base64.encodeToString(b, Base64.URL_SAFE or Base64.NO_PADDING or Base64.NO_WRAP)
-
-    fun unb64(s: String): ByteArray =
-      Base64.decode(s, Base64.URL_SAFE or Base64.NO_PADDING or Base64.NO_WRAP)
+    /* Kept as names here because the call sites read better, but the
+       encoding lives in B64 -- which works under a unit test, and the
+       Android one does not. */
+    fun b64(b: ByteArray): String = B64.encode(b)
+    fun unb64(s: String): ByteArray = B64.decode(s)
   }
 }
