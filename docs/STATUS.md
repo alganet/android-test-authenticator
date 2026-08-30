@@ -123,9 +123,12 @@ first without having actually been run.
    registration with it, the way `pm clear` does. A harness should call
    that between runs.
 
- - `--ez clear true` was seen to reach the activity and report its count on
-   an already-empty store. Clearing a store that had something in it was
-   not separately demonstrated -- the same code path, but not run.
+ - `--ez clear true` empties a store that had something in it, and does so
+   whether or not the activity is already open. That second half needed
+   `android:launchMode="singleTop"`: `am start` on a plain activity that is
+   already in recents brings it forward without delivering the intent, so
+   `onNewIntent` never ran and the command was silently nothing -- exactly
+   when there was something to clear.
 
  - There is no consent UI. Without auto-approve the ceremony is refused with
    a message saying so, rather than showing an empty screen.

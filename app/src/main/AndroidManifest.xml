@@ -8,10 +8,17 @@
         android:theme="@style/Theme.TestAuthenticator">
 
         <!-- The settings screen a provider is required to name, and where
-             auto-approve is turned on. -->
+             auto-approve is turned on.
+
+             singleTop so that a command on the launch intent reaches the
+             instance already in recents. Without it `am start` merely
+             brings that instance forward, onNewIntent never runs, and the
+             clear command is silently nothing, which is exactly the case
+             where there was something to clear. -->
         <activity
             android:name=".MainActivity"
-            android:exported="true">
+            android:exported="true"
+            android:launchMode="singleTop">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

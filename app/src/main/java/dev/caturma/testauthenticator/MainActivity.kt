@@ -1,6 +1,7 @@
 package dev.caturma.testauthenticator
 
 import android.app.Activity
+import android.content.Intent
 import android.os.Bundle
 import android.widget.LinearLayout
 import android.widget.ScrollView
@@ -24,8 +25,22 @@ class MainActivity : Activity() {
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
+    if (!obey(intent)) render()
+  }
 
-    /* Both reachable from a harness, which is the point of them:
+  /* An intent handed to the instance that is already here, which is what
+     `am start` does to a launcher activity sitting in recents. Without
+     this, a command on the launch intent is read once -- when the activity
+     is first created -- and every later one is silently nothing, which is
+     exactly the case where there was something to do. */
+  override fun onNewIntent(next: Intent) {
+    super.onNewIntent(next)
+    setIntent(next)
+    if (!obey(next)) render()
+  }
+
+  /* The two things a harness asks for on the launch intent, and true when
+     the intent was one of them rather than somebody opening the app:
      *
      *   --ez auto true    approve ceremonies without asking
      *   --ez clear true   forget every credential on this device
@@ -34,19 +49,17 @@ class MainActivity : Activity() {
      * relying party rejected -- see Vault.create -- and `pm clear` takes
      * auto-approve and the provider's registration with it. A test that
      * wants a clean slate between runs should call this, not that. */
+  private fun obey(intent: Intent): Boolean {
     if (intent.hasExtra("auto")) {
       Settings.setAutoApprove(this, intent.getBooleanExtra("auto", false))
-      finish()
-      return
-    }
-    if (intent.getBooleanExtra("clear", false)) {
+    } else if (intent.getBooleanExtra("clear", false)) {
       val gone = Vault(applicationContext).clear()
       android.util.Log.i("TestAuthenticator", "cleared $gone credential(s)")
-      finish()
-      return
+    } else {
+      return false
     }
-
-    render()
+    finish()
+    return true
   }
 
   private fun render() {
