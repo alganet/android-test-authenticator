@@ -46,10 +46,7 @@ class CreateActivity : Activity() {
       "androidx.credentials.BUNDLE_KEY_REQUEST_JSON",
     ) ?: error("no request json")
 
-    /* The calling app's signing identity, which is what an Android
-       authenticator uses where a browser would use a web origin. */
-    val origin = request.callingAppInfo.origin
-      ?: "android:apk-key-hash:${request.callingAppInfo.packageName}"
+    val origin = CallingApp.origin(request.callingAppInfo)
 
     return Ceremony.register(this, Vault(applicationContext), requestJson, origin)
   }

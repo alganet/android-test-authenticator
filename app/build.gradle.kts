@@ -41,4 +41,9 @@ dependencies {
   implementation("androidx.credentials:credentials:1.3.0")
   implementation("androidx.core:core-ktx:1.13.1")
   implementation("androidx.appcompat:appcompat:1.7.0")
+
+  /* The ceremony half has no Android in it on purpose -- see Ceremony.kt --
+     so the bytes a verifier reads can be checked on a JVM, in a second,
+     rather than by driving an emulator by hand. */
+  testImplementation("junit:junit:4.13.2")
 }

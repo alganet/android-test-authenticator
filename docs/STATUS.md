@@ -55,14 +55,25 @@ first without having actually been run.
 
 ## Not verified yet
 
- - **The response shape is wrong.** Credential Manager accepts it, but the
-   relying party app could not read it: the ceremony ends with the app
-   saying the device answered something unparseable, and no request reaches
-   the server. So the CBOR, the attestation object, or the JSON field names
-   in Ceremony.register are not yet what a client library expects. This is
-   the next thing to fix and the first thing to write a test for.
+ - **A complete registration, accepted by a real relying party.** An account
+   was created end to end against a WebAuthn server that verifies
+   attestation itself: challenge, origin, rpIdHash, user presence, the COSE
+   key re-encoded and the signature checked. No Google account on the
+   device, nothing over the network, no cloud of any kind.
 
- - A complete registration accepted by a real relying party.
+   Two bugs were between here and there, and both are worth naming because
+   neither announced itself:
+
+   1. The COSE key labels were encoded as the CBOR *argument* rather than
+      the negative number -- `nint(6)` where `nint(-7)` was meant. The key
+      still parsed far enough to fail as `bad_attestation`, which names a
+      file and not a label. CborTest pins it now.
+   2. The origin was built from the caller's package name. WebAuthn on
+      Android substitutes the caller's signing identity for a web origin --
+      base64url of SHA-256 over the signing certificate -- and the package
+      name looks close enough to pass review while being a different value.
+      That failed as `bad_origin`, which reads as "wrong app" rather than
+      "wrong hash". See CallingApp.kt.
  - A complete assertion, and whether the sign counter is read the way a
    verifier expects across two ceremonies.
  - Whether `callingAppInfo.origin` is populated on this platform version, or

@@ -69,13 +69,19 @@ object WebAuthn {
      does, and there is no reason to be the party that finds out which. */
   fun cosePublicKey(key: ECPublicKey): ByteArray {
     val p: ECPoint = key.w
+    /* The labels are the numbers themselves -- -1, -2, -3 -- not the CBOR
+       argument that encodes them. Passing 0, 1, 2 here reads as the right
+       thing and encodes as something else entirely, and the resulting key
+       still parses far enough to fail as `bad_attestation` on a server
+       rather than as anything that names a label. Cbor.nint takes the
+       value; CborTest pins that. */
     return Cbor.map(
       listOf(
-        Cbor.uint(1) to Cbor.uint(2),        // kty: EC2
-        Cbor.uint(3) to Cbor.nint(6),        // alg: ES256 (-7)
-        Cbor.nint(0) to Cbor.uint(1),        // crv: P-256 (-1 => 1)
-        Cbor.nint(1) to Cbor.bytes(coord(p.affineX)),
-        Cbor.nint(2) to Cbor.bytes(coord(p.affineY)),
+        Cbor.uint(1) to Cbor.uint(2),         // kty: EC2
+        Cbor.uint(3) to Cbor.nint(-7),        // alg: ES256
+        Cbor.nint(-1) to Cbor.uint(1),        // crv: P-256
+        Cbor.nint(-2) to Cbor.bytes(coord(p.affineX)),
+        Cbor.nint(-3) to Cbor.bytes(coord(p.affineY)),
       ),
     )
   }

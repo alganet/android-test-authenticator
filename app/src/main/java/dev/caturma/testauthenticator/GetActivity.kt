@@ -37,8 +37,7 @@ class GetActivity : Activity() {
       val credential = vault.forRp(rpId).firstOrNull()
         ?: error("no credential for $rpId")
 
-      val origin = request.callingAppInfo.origin
-        ?: "android:apk-key-hash:${request.callingAppInfo.packageName}"
+      val origin = CallingApp.origin(request.callingAppInfo)
 
       Ceremony.assert(vault, credential, requestJson, origin)
     }
