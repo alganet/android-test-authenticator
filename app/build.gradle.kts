@@ -1,0 +1,44 @@
+plugins {
+  id("com.android.application")
+  id("org.jetbrains.kotlin.android")
+}
+
+android {
+  namespace = "dev.caturma.testauthenticator"
+  compileSdk = 35
+
+  defaultConfig {
+    applicationId = "dev.caturma.testauthenticator"
+    /* Credential providers are Android 14. There is no shim for this and
+       there should not be one: the whole point is the platform API. */
+    minSdk = 34
+    targetSdk = 35
+    versionCode = 1
+    versionName = "0.1.0"
+  }
+
+  buildTypes {
+    debug {
+      /* Auto-approve is compiled in only here. A release build of a thing
+         that consents to itself has no honest use. */
+      buildConfigField("boolean", "ALLOW_AUTO_APPROVE", "true")
+    }
+    release {
+      isMinifyEnabled = false
+      buildConfigField("boolean", "ALLOW_AUTO_APPROVE", "false")
+    }
+  }
+
+  buildFeatures { buildConfig = true }
+  compileOptions {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+  }
+  kotlinOptions { jvmTarget = "17" }
+}
+
+dependencies {
+  implementation("androidx.credentials:credentials:1.3.0")
+  implementation("androidx.core:core-ktx:1.13.1")
+  implementation("androidx.appcompat:appcompat:1.7.0")
+}

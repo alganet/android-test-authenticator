@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Public key credentials only. A test authenticator that also offered to
+     remember passwords would be answering questions nobody asked it. -->
+<credential-provider
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:settingsActivity="dev.caturma.testauthenticator.MainActivity"
+    android:settingsSubtitle="@string/provider_subtitle">
+    <capabilities>
+        <capability name="androidx.credentials.TYPE_PUBLIC_KEY_CREDENTIAL" />
+    </capabilities>
+</credential-provider>

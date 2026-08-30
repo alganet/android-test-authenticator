@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application
+        android:allowBackup="false"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.TestAuthenticator">
+
+        <!-- The settings screen a provider is required to name, and where
+             auto-approve is turned on. -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- The two activities Credential Manager launches through the
+             PendingIntents this provider hands back. They are what a person
+             would tap; in auto-approve they finish without being seen. -->
+        <activity android:name=".CreateActivity" android:exported="true" />
+        <activity android:name=".GetActivity" android:exported="true" />
+
+        <service
+            android:name=".TestAuthenticatorService"
+            android:enabled="true"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:permission="android.permission.BIND_CREDENTIAL_PROVIDER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.credentials.CredentialProviderService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.credentials.provider"
+                android:resource="@xml/provider" />
+        </service>
+    </application>
+</manifest>
