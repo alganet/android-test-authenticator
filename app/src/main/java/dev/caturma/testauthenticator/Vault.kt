@@ -46,6 +46,7 @@ class Vault(context: Context) {
     userHandle: ByteArray,
     userName: String,
     requireAuth: Boolean,
+    testMode: Boolean = false,
   ): Pair<Credential, ECPublicKey> {
     /* One credential per user per rp, which is what WebAuthn asks a
        platform authenticator to do: registering again for the same rp.id
@@ -61,6 +62,30 @@ class Vault(context: Context) {
      * had piled up before this was written, half against an rp id the
      * server had since stopped using. */
     forRp(rpId).filter { it.userHandle.contentEquals(userHandle) }.forEach(::forget)
+
+    /* And, in test mode only, by name as well.
+     *
+     * The rule above is WebAuthn's and is not enough on its own. A relying
+     * party mints a fresh user id for every attempt -- caturma does, and
+     * says why: the user id is the account id, never the handle, because a
+     * handle is editable and a credential cannot be re-pointed. So two
+     * attempts at the same account are two different users as far as an
+     * authenticator can tell, and every ceremony that failed after this
+     * point leaves a credential behind that the relying party never
+     * recorded.
+     *
+     * That is ordinary WebAuthn and every authenticator lives with it. It
+     * is intolerable in a loop that registers the same handle fifty times
+     * in an afternoon, because the strays are then offered in the sheet
+     * and picking one fails as `bad_credential`.
+     *
+     * So under auto-approve -- which already means "this is a test" -- one
+     * credential per name per rp. It is a heuristic, it is not what a real
+     * authenticator should do, and it is off in any build that cannot
+     * auto-approve either. */
+    if (testMode && userName.isNotEmpty()) {
+      forRp(rpId).filter { it.userName == userName }.forEach(::forget)
+    }
 
     val credentialId = ByteArray(32).also { java.security.SecureRandom().nextBytes(it) }
 
@@ -138,9 +163,16 @@ class Vault(context: Context) {
     prefs.edit().remove(B64.encode(credential.credentialId)).apply()
   }
 
-  fun clear() {
-    all().forEach { runCatching { keystore.deleteEntry(alias(it.credentialId)) } }
-    prefs.edit().clear().apply()
+  /* commit() rather than apply(), and this is the one place it matters.
+     A harness clears and immediately registers again; apply() is
+     asynchronous, so the next ceremony can read the store before the wipe
+     has landed and hand back a credential that is about to be deleted.
+     Blocking here costs a few milliseconds once per test run. */
+  fun clear(): Int {
+    val had = all()
+    had.forEach { runCatching { keystore.deleteEntry(alias(it.credentialId)) } }
+    prefs.edit().clear().commit()
+    return had.size
   }
 
   companion object {

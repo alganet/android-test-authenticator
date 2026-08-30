@@ -14,16 +14,42 @@ import android.widget.TextView
  * the same flag and exits -- so this stays deliberately plain. */
 class MainActivity : Activity() {
 
+  override fun onResume() {
+    super.onResume()
+    /* Rebuilt here rather than in onCreate: resuming a screen that counted
+       credentials once is a screen that lies about the count for as long
+       as it stays in the back stack. */
+    if (!isFinishing) render()
+  }
+
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
 
-    /* adb shell am start -n dev.caturma.testauthenticator/.MainActivity --ez auto true */
+    /* Both reachable from a harness, which is the point of them:
+     *
+     *   --ez auto true    approve ceremonies without asking
+     *   --ez clear true   forget every credential on this device
+     *
+     * The second one exists because credentials pile up from ceremonies a
+     * relying party rejected -- see Vault.create -- and `pm clear` takes
+     * auto-approve and the provider's registration with it. A test that
+     * wants a clean slate between runs should call this, not that. */
     if (intent.hasExtra("auto")) {
       Settings.setAutoApprove(this, intent.getBooleanExtra("auto", false))
       finish()
       return
     }
+    if (intent.getBooleanExtra("clear", false)) {
+      val gone = Vault(applicationContext).clear()
+      android.util.Log.i("TestAuthenticator", "cleared $gone credential(s)")
+      finish()
+      return
+    }
 
+    render()
+  }
+
+  private fun render() {
     val pad = (16 * resources.displayMetrics.density).toInt()
     val column = LinearLayout(this).apply {
       orientation = LinearLayout.VERTICAL

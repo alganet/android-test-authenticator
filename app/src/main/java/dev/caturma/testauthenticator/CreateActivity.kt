@@ -59,6 +59,7 @@ class CreateActivity : Activity() {
          the gesture that answers it is the one Credential Manager refuses
          to accept synthetically. So under auto-approve it does not. */
       requireAuth = !Settings.autoApprove(this),
+      testMode = Settings.autoApprove(this),
     )
 
     return Ceremony.registrationResponse(

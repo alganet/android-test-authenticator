@@ -106,13 +106,26 @@ first without having actually been run.
 
    Re-registering the same user for the same rp now replaces rather than
    adds, which is what WebAuthn asks of a platform authenticator -- but it
-   does not fix this, because a relying party that mints a fresh user id
-   per attempt produces genuinely distinct credentials. Clearing the app's
-   data is the only cure today. A test harness should probably do that
-   between runs, and this should probably grow an adb-reachable way to.
+   does not fix this on its own, because a relying party that mints a fresh
+   user id per attempt produces genuinely distinct credentials. caturma
+   does exactly that, and is right to: its user id is the account id and
+   never the handle, because a handle is editable and a credential cannot
+   be re-pointed.
 
- - The settings screen builds its list in onCreate, so resuming it shows a
-   stale count.
+   So there are two more answers, both test-only. Under auto-approve --
+   which already means "this is a test" -- one credential per name per rp,
+   which is a heuristic no real authenticator should apply. And
+
+       adb shell am start -n dev.caturma.testauthenticator/.MainActivity \
+         --ez clear true
+
+   which forgets everything without taking auto-approve and the provider's
+   registration with it, the way `pm clear` does. A harness should call
+   that between runs.
+
+ - `--ez clear true` was seen to reach the activity and report its count on
+   an already-empty store. Clearing a store that had something in it was
+   not separately demonstrated -- the same code path, but not run.
 
  - There is no consent UI. Without auto-approve the ceremony is refused with
    a message saying so, rather than showing an empty screen.

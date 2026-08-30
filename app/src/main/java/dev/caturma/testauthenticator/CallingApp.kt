@@ -23,17 +23,12 @@ object CallingApp {
     /* Browsers and other privileged callers get a real web origin, and the
        platform hands it over only to those. Everything else falls through
        to the signature, which is the ordinary case here. */
-    runCatching { info.origin }.getOrNull()?.let {
-      android.util.Log.i("TestAuthenticator", "privileged origin: $it")
-      return it
-    }
+    runCatching { info.origin }.getOrNull()?.let { return it }
 
     val signature = info.signingInfo.apkContentsSigners.firstOrNull()
       ?: error("the caller has no signing certificate")
 
     val digest = MessageDigest.getInstance("SHA-256").digest(signature.toByteArray())
-    val origin = "android:apk-key-hash:" + Vault.b64(digest)
-    android.util.Log.i("TestAuthenticator", "origin for ${info.packageName}: $origin")
-    return origin
+    return "android:apk-key-hash:" + B64.encode(digest)
   }
 }
